@@ -56,6 +56,7 @@
 		"require-yield": "allow",
 		"use-isnan": "warn",
 		"valid-typeof": "warn",
+		"jest/require-to-throw-message": "off",
 		"oxc/bad-array-method-on-arguments": "warn",
 		"oxc/bad-char-at-comparison": "warn",
 		"oxc/bad-comparison-sequence": "warn",
