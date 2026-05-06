@@ -1,0 +1,27 @@
+{
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"compilerOptions": {
+		"allowImportingTsExtensions": true,
+		"allowSyntheticDefaultImports": true,
+		"erasableSyntaxOnly": true,
+		"exactOptionalPropertyTypes": true,
+		"forceConsistentCasingInFileNames": true,
+		"isolatedModules": true,
+		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"module": "nodenext",
+		"moduleDetection": "force",
+		"moduleResolution": "nodenext",
+		"noEmit": true,
+		"noErrorTruncation": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitOverride": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "es2022",
+		"types": ["node"],
+		"verbatimModuleSyntax": true
+	},
+	"include": ["src/**/*.ts"]
+}
