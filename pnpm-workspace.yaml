@@ -4,3 +4,5 @@ packages:
 
 allowBuilds:
   msgpackr-extract: true
+
+ignoreWorkspaceRootCheck: true
