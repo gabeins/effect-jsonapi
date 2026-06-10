@@ -1,10 +1,21 @@
 # effect-jsonapi
 
+[![npm version](https://img.shields.io/npm/v/effect-jsonapi.svg)](https://www.npmjs.com/package/effect-jsonapi)
+[![ci](https://github.com/gabeins/effect-jsonapi/actions/workflows/ci.yml/badge.svg)](https://github.com/gabeins/effect-jsonapi/actions/workflows/ci.yml)
+
 An Effect-native, type-safe implementation of the [JSON:API 1.1 specification](https://jsonapi.org/format/1.1/) for Effect's `HttpApi`.
 
 Define each resource once; the library derives every request and response document schema, parses and validates JSON:API fetch queries, serializes your domain values into spec-compliant documents (compound documents, sparse fieldsets, pagination links), and enforces JSON:API content negotiation and error documents at the HTTP boundary.
 
-> Requires `effect@4.0.0-beta` (effect-smol).
+## Install
+
+```sh
+pnpm add effect-jsonapi effect@4.0.0-beta.78
+```
+
+`effect` is a peer dependency. While Effect v4 (effect-smol) is in beta, each release of this package targets one exact beta version — check the [changelog](./CHANGELOG.md) for the beta a given release pairs with. Once v4 stabilizes, the peer range will widen to `^4.0.0`.
+
+The package is ESM-only and requires Node.js 20 or later.
 
 ## Quick start
 
@@ -200,3 +211,7 @@ Effect.fail(
 | Example    | Description                                                                                   |                                         |
 | ---------- | --------------------------------------------------------------------------------------------- | --------------------------------------- |
 | `blog-api` | A complete `HttpApi` JSON:API with pagination, sorting, filtering, includes, sparse fieldsets | [README](./examples/blog-api/readme.md) |
+
+## License
+
+[MIT](./license)
