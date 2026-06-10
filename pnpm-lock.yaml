@@ -208,7 +208,7 @@ importers:
   .:
     dependencies:
       effect:
-        specifier: 4.0.0-beta.78
+        specifier: '>=4.0.0-beta.52 <4.0.0'
         version: 4.0.0-beta.78
     devDependencies:
       '@arethetypeswrong/cli':
