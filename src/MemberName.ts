@@ -25,9 +25,6 @@ const isAlphanumericAsciiName = (value: string) =>
 	value.length > 0 &&
 	Array.from(value).every((character) => globallyAllowedAscii.includes(character));
 
-const memberNameIssue =
-	"JSON:API member names must be non-empty, start and end with a globally allowed character, and contain only allowed member-name characters";
-
 /**
  * Returns whether a value is a legal JSON:API member name.
  *
@@ -246,7 +243,11 @@ export const isImplementationQueryParameterBaseName = (value: string): boolean =
  * ```
  */
 export const MemberName = Schema.String.check(
-	Schema.makeFilter((value) => (isMemberName(value) ? undefined : memberNameIssue)),
+	Schema.makeFilter((value) =>
+		isMemberName(value)
+			? undefined
+			: "JSON:API member names must be non-empty, start and end with a globally allowed character, and contain only allowed member-name characters",
+	),
 ).annotate({
 	identifier: "JsonApiMemberName",
 	description: "A JSON:API implementation or profile-defined member name.",
@@ -312,6 +313,9 @@ export const ExtensionMemberName = Schema.String.check(
 /**
  * Schema for any JSON:API object member name accepted by this module.
  *
+ * This is a single filtered string schema rather than a union so that it can be
+ * used as a `Schema.Record` key schema.
+ *
  * @example
  * ```ts
  * Schema.decodeUnknownSync(ObjectMemberName)("links");
@@ -319,11 +323,13 @@ export const ExtensionMemberName = Schema.String.check(
  * Schema.decodeUnknownSync(ObjectMemberName)("version:id");
  * ```
  */
-export const ObjectMemberName = Schema.Union([
-	MemberName,
-	AtMemberName,
-	ExtensionMemberName,
-]).annotate({
+export const ObjectMemberName = Schema.String.check(
+	Schema.makeFilter((value) =>
+		isObjectMemberName(value)
+			? undefined
+			: "JSON:API object member names must be member names, @-member names, or extension member names",
+	),
+).annotate({
 	identifier: "JsonApiObjectMemberName",
 	description: "A JSON:API object member name, including extension and @-members.",
 });

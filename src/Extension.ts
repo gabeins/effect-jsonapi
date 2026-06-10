@@ -1,5 +1,10 @@
 import { Schema } from "effect";
-import { AtMemberName, ExtensionMemberName } from "./MemberName.js";
+import {
+	AtMemberName,
+	ExtensionMemberName,
+	isAtMemberName,
+	isExtensionMemberName,
+} from "./MemberName.js";
 
 /**
  * Schema for members defined by applied JSON:API extensions.
@@ -32,6 +37,23 @@ export const AtMembers = Schema.Record(AtMemberName, Schema.Json).annotate({
 });
 
 /**
+ * Schema for a JSON:API extension member or @-member name.
+ *
+ * This is a single filtered string schema rather than a union so that it can be
+ * used as a `Schema.Record` key schema.
+ */
+export const ExtensionOrAtMemberName = Schema.String.check(
+	Schema.makeFilter((value) =>
+		isExtensionMemberName(value) || isAtMemberName(value)
+			? undefined
+			: "Expected a JSON:API extension member or @-member name",
+	),
+).annotate({
+	identifier: "JsonApiExtensionOrAtMemberName",
+	description: "A JSON:API extension member or @-member name.",
+});
+
+/**
  * Schema for extension members and @-members.
  *
  * @example
@@ -42,20 +64,9 @@ export const AtMembers = Schema.Record(AtMemberName, Schema.Json).annotate({
  * });
  * ```
  */
-export const ExtensionOrAtMembers = Schema.Record(
-	Schema.Union([ExtensionMemberName, AtMemberName]),
-	Schema.Json,
-).annotate({
+export const ExtensionOrAtMembers = Schema.Record(ExtensionOrAtMemberName, Schema.Json).annotate({
 	identifier: "JsonApiExtensionOrAtMembers",
 	description: "JSON:API extension members and @-members.",
-});
-
-/**
- * Schema for a JSON:API extension member or @-member name.
- */
-export const ExtensionOrAtMemberName = Schema.Union([ExtensionMemberName, AtMemberName]).annotate({
-	identifier: "JsonApiExtensionOrAtMemberName",
-	description: "A JSON:API extension member or @-member name.",
 });
 
 /**
@@ -78,13 +89,16 @@ export const ExtensionOrAtMemberName = Schema.Union([ExtensionMemberName, AtMemb
  */
 export const extensibleObject = <S extends Schema.Struct<Schema.Struct.Fields>>(schema: S) => {
 	const knownKeys = new Set(Object.keys(schema.fields));
-	return Schema.StructWithRest(schema, [Schema.Record(Schema.String, Schema.Json)]).check(
+	const records = [Schema.Record(Schema.String, Schema.Json)] as const;
+	// The struct's own fields are JSON:API wire schemas and therefore always
+	// JSON-compatible, but this cannot be proven for the unresolved generic `S`.
+	return Schema.StructWithRest<S, typeof records>(schema, records as never).check(
 		Schema.makeFilter((value) => {
 			for (const key of Object.keys(value)) {
 				if (knownKeys.has(key)) {
 					continue;
 				}
-				if (Schema.decodeUnknownOption(ExtensionOrAtMemberName)(key)._tag === "None") {
+				if (!isExtensionMemberName(key) && !isAtMemberName(key)) {
 					return `Unexpected JSON:API member name: ${key}`;
 				}
 			}

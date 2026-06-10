@@ -1,51 +1,101 @@
+import { describe, expect, it } from "@effect/vitest";
 import { Schema } from "effect";
-import { describe, expect, it } from "vitest";
 import {
 	AtMemberName,
 	ExtensionMemberName,
 	FieldName,
 	IncludeParameter,
+	isAtMemberName,
+	isExtensionMemberName,
+	isFieldName,
+	isMemberName,
+	isRelationshipPath,
+	isSortField,
 	MemberName,
+	RelationshipPath,
 	SortParameter,
 	SparseFieldsetParameter,
-	isMemberName,
 } from "./MemberName.js";
 
-describe("JSON:API member names", () => {
-	it("accepts legal implementation member names", () => {
-		expect(isMemberName("firstName")).toBe(true);
-		expect(isMemberName("full name")).toBe(true);
-		expect(isMemberName("café")).toBe(true);
-		expect(Schema.decodeUnknownSync(MemberName)("football_club")).toBe("football_club");
+describe("member name predicates", () => {
+	it("accepts legal member names", () => {
+		expect(isMemberName("title")).toBe(true);
+		expect(isMemberName("published-at")).toBe(true);
+		expect(isMemberName("published_at")).toBe(true);
+		expect(isMemberName("a b")).toBe(true);
+		expect(isMemberName("naïve")).toBe(true);
+		expect(isMemberName("a")).toBe(true);
 	});
 
-	it("rejects reserved characters and invalid boundaries", () => {
-		expect(() => Schema.decodeUnknownSync(MemberName)("_hidden")).toThrow();
-		expect(() => Schema.decodeUnknownSync(MemberName)("author.name")).toThrow();
-		expect(() => Schema.decodeUnknownSync(MemberName)("bad+name")).toThrow();
-		expect(() => Schema.decodeUnknownSync(MemberName)("name-")).toThrow();
+	it("rejects illegal member names", () => {
+		expect(isMemberName("")).toBe(false);
+		expect(isMemberName(" title")).toBe(false);
+		expect(isMemberName("title ")).toBe(false);
+		expect(isMemberName("-title")).toBe(false);
+		expect(isMemberName("title_")).toBe(false);
+		expect(isMemberName("ti+tle")).toBe(false);
+		expect(isMemberName("ti:tle")).toBe(false);
 	});
 
-	it("supports @-members and extension member names", () => {
+	it("classifies @-members", () => {
+		expect(isAtMemberName("@context")).toBe(true);
+		expect(isAtMemberName("context")).toBe(false);
+		expect(isAtMemberName("@")).toBe(false);
+	});
+
+	it("classifies extension member names", () => {
+		expect(isExtensionMemberName("version:id")).toBe(true);
+		expect(isExtensionMemberName("version:id:extra")).toBe(false);
+		expect(isExtensionMemberName(":id")).toBe(false);
+		expect(isExtensionMemberName("version:")).toBe(false);
+		expect(isExtensionMemberName("ver-sion:id")).toBe(false);
+	});
+
+	it("rejects reserved field names", () => {
+		expect(isFieldName("title")).toBe(true);
+		expect(isFieldName("type")).toBe(false);
+		expect(isFieldName("id")).toBe(false);
+	});
+
+	it("validates relationship paths", () => {
+		expect(isRelationshipPath("author")).toBe(true);
+		expect(isRelationshipPath("author.organization")).toBe(true);
+		expect(isRelationshipPath("author..organization")).toBe(false);
+		expect(isRelationshipPath("")).toBe(false);
+	});
+
+	it("validates sort fields", () => {
+		expect(isSortField("publishedAt")).toBe(true);
+		expect(isSortField("-publishedAt")).toBe(true);
+		expect(isSortField("--publishedAt")).toBe(false);
+	});
+});
+
+describe("member name schemas", () => {
+	it("decodes legal values", () => {
+		expect(Schema.decodeUnknownSync(MemberName)("published-at")).toBe("published-at");
 		expect(Schema.decodeUnknownSync(AtMemberName)("@context")).toBe("@context");
 		expect(Schema.decodeUnknownSync(ExtensionMemberName)("version:id")).toBe("version:id");
-	});
-
-	it("keeps resource fields out of the type/id namespace", () => {
 		expect(Schema.decodeUnknownSync(FieldName)("title")).toBe("title");
-		expect(() => Schema.decodeUnknownSync(FieldName)("type")).toThrow();
-		expect(() => Schema.decodeUnknownSync(FieldName)("id")).toThrow();
-	});
-
-	it("validates include, fields, and sort parameter values", () => {
+		expect(Schema.decodeUnknownSync(RelationshipPath)("comments.author")).toBe("comments.author");
 		expect(Schema.decodeUnknownSync(IncludeParameter)("author,comments.author")).toBe(
 			"author,comments.author",
 		);
 		expect(Schema.decodeUnknownSync(IncludeParameter)("")).toBe("");
-		expect(Schema.decodeUnknownSync(SparseFieldsetParameter)("title,author")).toBe("title,author");
+		expect(Schema.decodeUnknownSync(SparseFieldsetParameter)("title,body")).toBe("title,body");
 		expect(Schema.decodeUnknownSync(SparseFieldsetParameter)("")).toBe("");
-		expect(Schema.decodeUnknownSync(SortParameter)("-created,title")).toBe("-created,title");
-		expect(() => Schema.decodeUnknownSync(IncludeParameter)("comments..author")).toThrow();
+		expect(Schema.decodeUnknownSync(SortParameter)("-publishedAt,title")).toBe(
+			"-publishedAt,title",
+		);
+	});
+
+	it("rejects illegal values", () => {
+		expect(() => Schema.decodeUnknownSync(MemberName)(" title")).toThrow();
+		expect(() => Schema.decodeUnknownSync(AtMemberName)("context")).toThrow();
+		expect(() => Schema.decodeUnknownSync(ExtensionMemberName)("version")).toThrow();
+		expect(() => Schema.decodeUnknownSync(FieldName)("type")).toThrow();
+		expect(() => Schema.decodeUnknownSync(RelationshipPath)("a..b")).toThrow();
+		expect(() => Schema.decodeUnknownSync(SparseFieldsetParameter)("title,id")).toThrow();
 		expect(() => Schema.decodeUnknownSync(SortParameter)("")).toThrow();
 	});
 });

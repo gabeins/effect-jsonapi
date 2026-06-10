@@ -1,35 +1,41 @@
+import { describe, expect, it } from "@effect/vitest";
 import { Schema } from "effect";
-import { describe, expect, it } from "vitest";
-import { extensibleObject } from "./Extension.js";
+import { AtMembers, ExtensionMembers, extensibleObject } from "./Extension.js";
 
-describe("JSON:API extension members", () => {
-	it("can extend closed base schemas with extension and @-members", () => {
-		const ResourceWithExtensionMembers = extensibleObject(
-			Schema.Struct({
-				type: Schema.String,
-				id: Schema.String,
-			}),
-		);
+describe("extension member schemas", () => {
+	it("decodes extension members", () => {
+		expect(Schema.decodeUnknownSync(ExtensionMembers)({ "version:id": "42" })).toEqual({
+			"version:id": "42",
+		});
+		expect(() => Schema.decodeUnknownSync(ExtensionMembers)({ version: "42" })).toThrow();
+	});
 
+	it("decodes @-members", () => {
+		expect(Schema.decodeUnknownSync(AtMembers)({ "@context": "ctx" })).toEqual({
+			"@context": "ctx",
+		});
+		expect(() => Schema.decodeUnknownSync(AtMembers)({ context: "ctx" })).toThrow();
+	});
+});
+
+describe("extensibleObject", () => {
+	const schema = extensibleObject(Schema.Struct({ type: Schema.String }));
+
+	it("keeps known fields and accepts extension and @-members", () => {
 		expect(
-			Schema.decodeUnknownSync(ResourceWithExtensionMembers)({
+			Schema.decodeUnknownSync(schema)({
 				"type": "articles",
-				"id": "1",
 				"version:id": "42",
-				"@context": "https://example.com/context",
+				"@context": "ctx",
 			}),
 		).toEqual({
 			"type": "articles",
-			"id": "1",
 			"version:id": "42",
-			"@context": "https://example.com/context",
+			"@context": "ctx",
 		});
-		expect(() =>
-			Schema.decodeUnknownSync(ResourceWithExtensionMembers)({
-				"type": "articles",
-				"id": "1",
-				"bad.extension": true,
-			}),
-		).toThrow();
+	});
+
+	it("rejects unexpected member names", () => {
+		expect(() => Schema.decodeUnknownSync(schema)({ type: "articles", extra: 1 })).toThrow();
 	});
 });

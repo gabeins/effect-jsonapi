@@ -1,184 +1,182 @@
+import { describe, expect, it } from "@effect/vitest";
 import { Schema } from "effect";
-import { describe, expect, it } from "vitest";
-import { Link } from "./Link.js";
-import {
-	AttributesObject,
-	RelationshipObject,
-	ResourceIdentifierObject,
-	ResourceObject,
-	ResponseResourceObject,
-	UpdateResourceObject,
-	resourceIdentifier,
-	resourceIdentityKey,
-	resourceObject,
-} from "./Resource.js";
+import * as Relationship from "./Relationship.js";
+import * as Resource from "./Resource.js";
 
-describe("JSON:API resources", () => {
-	it("validates resource identifier objects", () => {
-		expect(Schema.decodeUnknownSync(ResourceIdentifierObject)({ type: "people", id: "9" })).toEqual(
-			{
-				type: "people",
-				id: "9",
-			},
-		);
-		expect(
-			Schema.decodeUnknownSync(ResourceIdentifierObject)({ type: "people", lid: "local-1" }),
-		).toEqual({
-			type: "people",
-			lid: "local-1",
-		});
-		expect(() => Schema.decodeUnknownSync(ResourceIdentifierObject)({ type: "people" })).toThrow();
-	});
+const PostResource = Resource.make("posts", {
+	attributes: {
+		title: Schema.String,
+		body: Schema.String,
+	},
+	relationships: {
+		author: Relationship.toOne((): Resource.Any => UserResource, { nullable: false }),
+	},
+});
 
-	it("validates relationship object minimum members", () => {
-		expect(
-			Schema.decodeUnknownSync(RelationshipObject)({
-				data: { type: "people", id: "9" },
+const UserResource = Resource.make("users", {
+	attributes: {
+		name: Schema.String,
+		email: Schema.NullOr(Schema.String),
+	},
+	relationships: {
+		posts: Relationship.toMany(() => PostResource),
+	},
+});
+
+describe("Resource.make", () => {
+	it("validates definition-time member names", () => {
+		expect(() => Resource.make(" bad", { attributes: { a: Schema.String } })).toThrow();
+		expect(() => Resource.make("ok", { attributes: { type: Schema.String } })).toThrow();
+		expect(() => Resource.make("ok", { attributes: { id: Schema.String } })).toThrow();
+		expect(() =>
+			Resource.make("ok", {
+				attributes: { author: Schema.String },
+				relationships: { author: Relationship.toOne(() => UserResource) },
 			}),
-		).toEqual({
-			data: { type: "people", id: "9" },
-		});
-		expect(() => Schema.decodeUnknownSync(RelationshipObject)({})).toThrow();
+		).toThrow();
 	});
 
-	it("validates resource field namespaces", () => {
-		const resource = {
-			type: "articles",
+	it("accepts an attributes struct or attribute fields", () => {
+		const fromFields = Resource.make("a", { attributes: { name: Schema.String } });
+		const fromStruct = Resource.make("b", {
+			attributes: Schema.Struct({ name: Schema.String }),
+		});
+		expect(Object.keys(fromFields.attributes.fields)).toEqual(["name"]);
+		expect(Object.keys(fromStruct.attributes.fields)).toEqual(["name"]);
+	});
+
+	it("derives identifier schemas", () => {
+		expect(Schema.decodeUnknownSync(UserResource.Identifier)({ type: "users", id: "1" })).toEqual({
+			type: "users",
 			id: "1",
-			attributes: {
-				title: "JSON:API paints my bikeshed!",
-			},
+		});
+		expect(() =>
+			Schema.decodeUnknownSync(UserResource.Identifier)({ type: "posts", id: "1" }),
+		).toThrow();
+	});
+
+	it("derives resource object schemas with optional attributes for sparse fieldsets", () => {
+		const full = {
+			type: "users",
+			id: "1",
+			attributes: { name: "Ada", email: null },
 			relationships: {
-				author: {
-					data: { type: "people", id: "9" },
-				},
+				posts: { data: [{ type: "posts", id: "10" }] },
 			},
 		};
+		expect(Schema.decodeUnknownSync(UserResource.ResourceObject)(full)).toEqual(full);
 
-		expect(Schema.decodeUnknownSync(ResourceObject)(resource)).toEqual(resource);
+		const sparse = { type: "users", id: "1", attributes: { name: "Ada" } };
+		expect(Schema.decodeUnknownSync(UserResource.ResourceObject)(sparse)).toEqual(sparse);
+
 		expect(() =>
-			Schema.decodeUnknownSync(ResourceObject)({
-				type: "articles",
+			Schema.decodeUnknownSync(UserResource.ResourceObject)({
+				type: "users",
 				id: "1",
-				attributes: { author: "9" },
-				relationships: {
-					author: {
-						data: { type: "people", id: "9" },
-					},
-				},
+				attributes: { name: 42 },
 			}),
 		).toThrow();
-		expect(
-			Schema.decodeUnknownSync(ResourceObject)({
-				"type": "articles",
-				"id": "1",
-				"version:id": "42",
-				"@context": "https://example.com/context",
-			}),
-		).toEqual({
-			"type": "articles",
-			"id": "1",
-			"version:id": "42",
-			"@context": "https://example.com/context",
-		});
 	});
 
-	it("provides stricter response and update resource schemas", () => {
-		expect(Schema.decodeUnknownSync(ResponseResourceObject)({ type: "articles", id: "1" })).toEqual(
-			{
-				type: "articles",
+	it("validates relationship linkage against the target resource", () => {
+		expect(() =>
+			Schema.decodeUnknownSync(UserResource.ResourceObject)({
+				type: "users",
 				id: "1",
+				relationships: { posts: { data: [{ type: "users", id: "2" }] } },
+			}),
+		).toThrow();
+
+		// Non-nullable to-one linkage rejects null.
+		expect(() =>
+			Schema.decodeUnknownSync(PostResource.ResourceObject)({
+				type: "posts",
+				id: "10",
+				relationships: { author: { data: null } },
+			}),
+		).toThrow();
+	});
+
+	it("derives document schemas", () => {
+		const document = {
+			data: {
+				type: "posts",
+				id: "10",
+				attributes: { title: "Hello", body: "World" },
+				relationships: { author: { data: { type: "users", id: "1" } } },
 			},
+			included: [
+				{
+					type: "users",
+					id: "1",
+					attributes: { name: "Ada", email: null },
+				},
+			],
+		};
+		expect(Schema.decodeUnknownSync(PostResource.Document)(document)).toEqual(document);
+
+		const collection = { data: [document.data], links: { self: "/posts" } };
+		expect(Schema.decodeUnknownSync(PostResource.CollectionDocument)(collection)).toEqual(
+			collection,
 		);
-		expect(() =>
-			Schema.decodeUnknownSync(ResponseResourceObject)({ type: "articles", lid: "local-1" }),
-		).toThrow();
-		expect(() => Schema.decodeUnknownSync(UpdateResourceObject)({ type: "articles" })).toThrow();
-	});
 
-	it("uses Effect JSON for attribute values", () => {
-		expect(
-			Schema.decodeUnknownSync(AttributesObject)({
-				title: "Rails is Omakase",
-				stats: { reads: 10, featured: true, tags: ["football"] },
-			}),
-		).toEqual({
-			title: "Rails is Omakase",
-			stats: { reads: 10, featured: true, tags: ["football"] },
+		expect(Schema.decodeUnknownSync(PostResource.NullableDocument)({ data: null })).toEqual({
+			data: null,
 		});
 	});
 
-	it("validates recursive link objects", () => {
-		expect(
-			Schema.decodeUnknownSync(Link)({
-				href: "/articles",
-				describedby: {
-					href: "/openapi.json",
-				},
-			}),
-		).toEqual({
-			href: "/articles",
-			describedby: {
-				href: "/openapi.json",
+	it("derives create document schemas that reject client-generated ids", () => {
+		const create = {
+			data: {
+				type: "posts",
+				lid: "tmp-1",
+				attributes: { title: "Hello", body: "World" },
+				relationships: { author: { data: { type: "users", id: "1" } } },
 			},
-		});
-	});
+		};
+		expect(Schema.decodeUnknownSync(PostResource.CreateDocument)(create)).toEqual(create);
 
-	it("provides typed resource helper schemas", () => {
-		const ArticleIdentifier = resourceIdentifier("articles", Schema.String);
-		const ArticleResource = resourceObject({
-			type: "articles",
-			id: Schema.String,
-			attributes: Schema.Struct({
-				title: Schema.String,
-			}),
-			relationships: Schema.Struct({
-				author: RelationshipObject,
-			}),
-		});
-		const ArticleResourceWithCollidingFields = resourceObject({
-			type: "articles",
-			id: Schema.String,
-			attributes: Schema.Struct({
-				title: Schema.String,
-			}),
-			relationships: Schema.Struct({
-				title: RelationshipObject,
-			}),
-		});
-
-		expect(Schema.decodeUnknownSync(ArticleIdentifier)({ type: "articles", id: "1" })).toEqual({
-			type: "articles",
-			id: "1",
-		});
-		expect(
-			Schema.decodeUnknownSync(ArticleResource)({
-				type: "articles",
-				id: "1",
-				attributes: { title: "JSON:API paints my bikeshed!" },
-				relationships: { author: { data: { type: "people", id: "9" } } },
-			}),
-		).toEqual({
-			type: "articles",
-			id: "1",
-			attributes: { title: "JSON:API paints my bikeshed!" },
-			relationships: { author: { data: { type: "people", id: "9" } } },
-		});
 		expect(() =>
-			Schema.decodeUnknownSync(ArticleResourceWithCollidingFields)({
-				type: "articles",
-				id: "1",
-				attributes: { title: "JSON:API paints my bikeshed!" },
-				relationships: {
-					title: { data: { type: "translations", id: "en" } },
-				},
+			Schema.decodeUnknownSync(PostResource.CreateDocument)({
+				data: { type: "posts", id: "10", attributes: { title: "a", body: "b" } },
+			}),
+		).toThrow();
+
+		expect(() =>
+			Schema.decodeUnknownSync(PostResource.CreateDocument)({
+				data: { type: "posts", attributes: { title: "a" } },
 			}),
 		).toThrow();
 	});
 
-	it("builds stable resource identity keys", () => {
-		expect(resourceIdentityKey({ type: "people", id: "9" })).toBe("people:id:9");
-		expect(resourceIdentityKey({ type: "people", lid: "local-9" })).toBe("people:lid:local-9");
-		expect(resourceIdentityKey({ type: "people" })).toBeUndefined();
+	it("derives update document schemas with partial attributes", () => {
+		const update = {
+			data: {
+				type: "posts",
+				id: "10",
+				attributes: { title: "Renamed" },
+			},
+		};
+		expect(Schema.decodeUnknownSync(PostResource.UpdateDocument)(update)).toEqual(update);
+
+		expect(() =>
+			Schema.decodeUnknownSync(PostResource.UpdateDocument)({
+				data: { type: "posts", attributes: { title: "Renamed" } },
+			}),
+		).toThrow();
+	});
+
+	it("derives relationship request document schemas", () => {
+		const toOne = Resource.toOneRelationshipDocument(UserResource);
+		expect(Schema.decodeUnknownSync(toOne)({ data: { type: "users", id: "1" } })).toEqual({
+			data: { type: "users", id: "1" },
+		});
+		expect(Schema.decodeUnknownSync(toOne)({ data: null })).toEqual({ data: null });
+
+		const toMany = Resource.toManyRelationshipDocument(PostResource);
+		expect(Schema.decodeUnknownSync(toMany)({ data: [{ type: "posts", id: "10" }] })).toEqual({
+			data: [{ type: "posts", id: "10" }],
+		});
+		expect(() => Schema.decodeUnknownSync(toMany)({ data: null })).toThrow();
 	});
 });
