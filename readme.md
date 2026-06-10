@@ -15,7 +15,7 @@ pnpm add effect-jsonapi effect@4.0.0-beta.78
 
 `effect` is a peer dependency. While Effect v4 (effect-smol) is in beta, each release of this package targets one exact beta version — check the [changelog](./CHANGELOG.md) for the beta a given release pairs with. Once v4 stabilizes, the peer range will widen to `^4.0.0`.
 
-The package is ESM-only and requires Node.js 20 or later.
+The package is ESM-only and requires Node.js 24 or later.
 
 ## Quick start
 
