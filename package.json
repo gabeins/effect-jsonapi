@@ -61,7 +61,7 @@
 		"vitest": "^4.1.8"
 	},
 	"peerDependencies": {
-		"effect": "4.0.0-beta.78"
+		"effect": ">=4.0.0-beta.52 <4.0.0"
 	},
 	"engines": {
 		"node": ">=24"
