@@ -32,9 +32,22 @@ jobs:
       - name: Update npm
         run: npm install -g npm@latest
 
+      # Compute the version the release PR will create so it can be used in the
+      # PR title and commit message. Apply the bump, read it, then revert so the
+      # changesets action performs the real versioning.
+      - name: Compute next version
+        id: version
+        run: |
+          pnpm changeset version
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          git checkout -- .
+          git clean -fd
+
       - name: Create release PR or publish to npm
         uses: changesets/action@v1
         with:
           publish: pnpm changeset publish
+          title: Release ${{ steps.version.outputs.version }}
+          commit: ${{ steps.version.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
