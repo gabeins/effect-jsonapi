@@ -7,11 +7,12 @@
 		"check": "pnpm --dir ../.. run build && tsc --noEmit"
 	},
 	"dependencies": {
-		"effect": "4.0.0-beta.59",
+		"@effect/platform-node": "4.0.0-beta.78",
+		"effect": "4.0.0-beta.78",
 		"effect-jsonapi": "workspace:*"
 	},
 	"devDependencies": {
-		"@types/node": "^25.6.0",
+		"@types/node": "^25.9.2",
 		"typescript": "^6.0.3"
 	}
 }
